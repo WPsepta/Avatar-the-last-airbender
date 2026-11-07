@@ -37,14 +37,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract Android and Runtime folders
+      - name: Extract final project folder
         run: |
-          unzip -q android_build.zip
-          unzip -q runtime_build.zip
+          unzip -q project_final.zip
 
-      - name: Merge split zip parts
+      - name: Merge split zip parts (C++ output)
         run: |
-          ls -lh avatar_zip_part_*
           cat avatar_zip_part_* > avatar_output.zip
 
       - name: Extract generated C++ output
@@ -52,20 +50,14 @@ jobs:
           rm -rf /tmp/generated
           mkdir -p /tmp/generated
           unzip -q avatar_output.zip -d /tmp/generated
-          test -f /tmp/generated/output/ps2_recompiled_functions.h
-          test -f /tmp/generated/output/ps2_recompiled_stubs.h
-          test -f /tmp/generated/output/register_functions.cpp
 
       - name: Integrate generated files into PS2Recomp runtime
         run: |
-          set -euxo pipefail
           cp /tmp/generated/output/ps2_recompiled_functions.h ps2xRuntime/include/
           cp /tmp/generated/output/ps2_recompiled_stubs.h ps2xRuntime/include/
           cp /tmp/generated/output/register_functions.cpp ps2xRuntime/src/runner/register_functions.cpp
           cp /tmp/generated/output/sub_*.cpp ps2xRuntime/src/runner/
           cp /tmp/generated/output/entry_*.cpp ps2xRuntime/src/runner/
-          echo "Integrated files:"
-          ls ps2xRuntime/src/runner | wc -l
 
       - name: Build release APK
         working-directory: android
