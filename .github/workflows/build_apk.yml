@@ -37,18 +37,15 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      # EKSTRAK FOLDER ANDROID DAN RUNTIME YANG BARU DIUPLOAD
       - name: Extract Android and Runtime folders
         run: |
           unzip -q android_build.zip
           unzip -q runtime_build.zip
 
-      # GABUNGKAN FILE ZIP C++ (aa + ab)
       - name: Merge split zip parts
         run: |
           ls -lh avatar_zip_part_*
           cat avatar_zip_part_* > avatar_output.zip
-          ls -lh avatar_output.zip
 
       - name: Extract generated C++ output
         run: |
@@ -73,9 +70,7 @@ jobs:
       - name: Build release APK
         working-directory: android
         run: |
-          set -euxo pipefail
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          gradle assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
