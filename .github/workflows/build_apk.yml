@@ -37,20 +37,24 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      # EKSTRAK FOLDER ANDROID DAN RUNTIME YANG BARU DIUPLOAD
+      - name: Extract Android and Runtime folders
+        run: |
+          unzip -q android_build.zip
+          unzip -q runtime_build.zip
+
+      # GABUNGKAN FILE ZIP C++ (aa + ab)
       - name: Merge split zip parts
         run: |
-          set -euxo pipefail
           ls -lh avatar_zip_part_*
           cat avatar_zip_part_* > avatar_output.zip
           ls -lh avatar_output.zip
 
       - name: Extract generated C++ output
         run: |
-          set -euxo pipefail
           rm -rf /tmp/generated
           mkdir -p /tmp/generated
           unzip -q avatar_output.zip -d /tmp/generated
-          ls /tmp/generated/output | head
           test -f /tmp/generated/output/ps2_recompiled_functions.h
           test -f /tmp/generated/output/ps2_recompiled_stubs.h
           test -f /tmp/generated/output/register_functions.cpp
