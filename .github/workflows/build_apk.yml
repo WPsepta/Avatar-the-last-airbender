@@ -39,7 +39,7 @@ jobs:
 
       - name: Extract final project folder
         run: |
-          unzip -q project_final_v4.zip
+          unzip -q project_final_v5.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
