@@ -38,9 +38,9 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract final project folder
-        # PENTING: Ini udah diganti ke v8
+        # PENTING: Ini udah diganti ke v9
         run: |
-          unzip -q project_final_v8.zip
+          unzip -q project_final_v9.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
