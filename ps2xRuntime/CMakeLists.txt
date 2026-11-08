@@ -76,6 +76,10 @@ else()
         set(PLATFORM "Android" CACHE STRING "" FORCE)
     endif()
 
+    # Disable unity build while fetching raylib - its C sources (rlgl.h/raymath.h/stb)
+    # break under unity builds due to unguarded headers and macro clashes (e.g. C).
+    set(_PS2X_SAVE_UNITY_BUILD ${CMAKE_UNITY_BUILD})
+    set(CMAKE_UNITY_BUILD OFF)
     FetchContent_Declare(
         raylib
         GIT_REPOSITORY "https://github.com/raysan5/raylib.git"
@@ -83,7 +87,8 @@ else()
         GIT_PROGRESS TRUE
     )
     FetchContent_MakeAvailable(raylib)
-    # Disable unity build for raylib (C library) - global CMAKE_UNITY_BUILD breaks it.
+    set(CMAKE_UNITY_BUILD ${_PS2X_SAVE_UNITY_BUILD})
+    unset(_PS2X_SAVE_UNITY_BUILD)
     if(TARGET raylib)
         set_target_properties(raylib PROPERTIES UNITY_BUILD OFF)
     endif()
