@@ -85,9 +85,18 @@ jobs:
         run: |
           gradle assembleRelease -Pandroid.injected.build.api=34 --parallel --max-workers=4
 
+      - name: Locate APK
+        run: |
+          echo "Searching for APK outputs..."
+          find android -name "*.apk" -ls || true
+          find . -path "*outputs*apk*.apk" -ls || true
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: avatar-ps2recomp-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: |
+            android/app/build/outputs/apk/**/*.apk
+            android/**/release/*.apk
+            **/*release*.apk
           if-no-files-found: error
