@@ -38,9 +38,8 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract final project folder
-        # PENTING: Ini udah diganti ke v9
         run: |
-          unzip -q project_final_v9.zip
+          unzip -q project_final_v10.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
@@ -67,7 +66,6 @@ jobs:
       - name: Build release APK
         working-directory: android
         env:
-          # Tetap pakai Unity Build biar kilat
           CMAKE_UNITY_BUILD: "ON"
           CMAKE_UNITY_BUILD_BATCH_SIZE: "50"
         run: |
