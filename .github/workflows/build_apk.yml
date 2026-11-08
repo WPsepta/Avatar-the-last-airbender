@@ -52,7 +52,7 @@ jobs:
 
       - name: Extract final project folder
         run: |
-          unzip -oq project_final_v19.zip
+          unzip -oq project_final_v20.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
@@ -81,8 +81,9 @@ jobs:
         env:
           CMAKE_UNITY_BUILD: "ON"
           CMAKE_UNITY_BUILD_BATCH_SIZE: "50"
+          CMAKE_BUILD_PARALLEL_LEVEL: "4"
         run: |
-          gradle assembleRelease -Pandroid.injected.build.api=34
+          gradle assembleRelease -Pandroid.injected.build.api=34 --parallel --max-workers=4
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
