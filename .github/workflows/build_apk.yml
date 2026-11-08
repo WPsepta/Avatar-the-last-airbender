@@ -38,9 +38,9 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract final project folder
-        # PENTING: Pastikan nama file zip ini sesuai dengan yang lo upload (v7)
+        # PENTING: Ini udah diganti ke v8
         run: |
-          unzip -q project_final_v7.zip
+          unzip -q project_final_v8.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
@@ -67,11 +67,10 @@ jobs:
       - name: Build release APK
         working-directory: android
         env:
-          # Memaksa CMake pakai Unity Build (Jumbo Build) agar cepat
+          # Tetap pakai Unity Build biar kilat
           CMAKE_UNITY_BUILD: "ON"
           CMAKE_UNITY_BUILD_BATCH_SIZE: "50"
         run: |
-          # Menggunakan 'gradle' langsung dan memaksa mode release murni
           gradle assembleRelease -Pandroid.injected.build.api=34
 
       - name: Upload APK artifact
