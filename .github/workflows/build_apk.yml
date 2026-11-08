@@ -38,11 +38,13 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extract final project folder
+        # PENTING: Pastikan nama file zip ini sesuai dengan yang lo upload (v7)
         run: |
-          unzip -q project_final_v6.zip
+          unzip -q project_final_v7.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
+          ls -lh avatar_zip_part_*
           cat avatar_zip_part_* > avatar_output.zip
 
       - name: Extract generated C++ output
@@ -53,16 +55,24 @@ jobs:
 
       - name: Integrate generated files into PS2Recomp runtime
         run: |
+          set -euxo pipefail
           cp /tmp/generated/output/ps2_recompiled_functions.h ps2xRuntime/include/
           cp /tmp/generated/output/ps2_recompiled_stubs.h ps2xRuntime/include/
           cp /tmp/generated/output/register_functions.cpp ps2xRuntime/src/runner/register_functions.cpp
           cp /tmp/generated/output/sub_*.cpp ps2xRuntime/src/runner/
           cp /tmp/generated/output/entry_*.cpp ps2xRuntime/src/runner/
+          echo "Integrated files:"
+          ls ps2xRuntime/src/runner | wc -l
 
       - name: Build release APK
         working-directory: android
+        env:
+          # Memaksa CMake pakai Unity Build (Jumbo Build) agar cepat
+          CMAKE_UNITY_BUILD: "ON"
+          CMAKE_UNITY_BUILD_BATCH_SIZE: "50"
         run: |
-          gradle assembleRelease
+          # Menggunakan 'gradle' langsung dan memaksa mode release murni
+          gradle assembleRelease -Pandroid.injected.build.api=34
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
