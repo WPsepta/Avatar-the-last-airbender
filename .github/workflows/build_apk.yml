@@ -32,10 +32,23 @@ jobs:
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
-      - name: Set up Gradle
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: '8.9'
+      - name: Install Gradle 8.9
+        run: |
+          set -euxo pipefail
+          GRADLE_VER=8.9
+          GRADLE_ZIP="gradle-${GRADLE_VER}-bin.zip"
+          for i in 1 2 3 4 5; do
+            if curl -fsSL --retry 5 --retry-delay 5 -o "/tmp/${GRADLE_ZIP}" \
+              "https://services.gradle.org/distributions/${GRADLE_ZIP}"; then
+              break
+            fi
+            echo "Gradle download attempt $i failed, retrying..."
+            sleep 10
+          done
+          test -f "/tmp/${GRADLE_ZIP}"
+          unzip -q "/tmp/${GRADLE_ZIP}" -d /tmp/gradle-dist
+          echo "/tmp/gradle-dist/gradle-${GRADLE_VER}/bin" >> "$GITHUB_PATH"
+          /tmp/gradle-dist/gradle-${GRADLE_VER}/bin/gradle --version | head -5
 
       - name: Extract final project folder
         run: |
