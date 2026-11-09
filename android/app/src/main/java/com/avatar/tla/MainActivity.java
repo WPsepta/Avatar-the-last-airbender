@@ -13,15 +13,25 @@ public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
     private static final int REQ_OVERLAY = 1002;
 
+    private static final String[] RESOLUTIONS = {"144p", "240p", "360p", "480p", "720p", "1080p (HD)"};
+
     private TextView tvIsoStatus;
-    private Spinner spinnerRes;
+    private ProgressBar progressIso;
+    private TextView tvProgress;
+    private SeekBar seekRes;
+    private TextView tvResLabel;
     private Spinner spinnerGraphics;
     private Button btnStart;
+    private TextView tvError;
 
     private Uri selectedIsoUri = null;
 
     static {
-        System.loadLibrary("ps2EntryRunner");
+        try {
+            System.loadLibrary("ps2EntryRunner");
+        } catch (UnsatisfiedLinkError e) {
+            // Library not found - will be caught at runtime
+        }
     }
 
     public native void setResolution(String res);
@@ -32,15 +42,25 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         tvIsoStatus = findViewById(R.id.tvIsoStatus);
-        spinnerRes = findViewById(R.id.spinnerRes);
+        progressIso = findViewById(R.id.progressIso);
+        tvProgress = findViewById(R.id.tvProgress);
+        seekRes = findViewById(R.id.seekRes);
+        tvResLabel = findViewById(R.id.tvResLabel);
         spinnerGraphics = findViewById(R.id.spinnerGraphics);
         btnStart = findViewById(R.id.btnStart);
+        tvError = findViewById(R.id.tvError);
 
-        ArrayAdapter<String> resAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item,
-                new String[]{"144p", "240p", "360p", "480p", "720p", "1080p (HD)"});
-        resAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerRes.setAdapter(resAdapter);
+        seekRes.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvResLabel.setText(RESOLUTIONS[progress]);
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        tvResLabel.setText(RESOLUTIONS[seekRes.getProgress()]);
 
         ArrayAdapter<String> gfxAdapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item,
@@ -53,9 +73,13 @@ public class MainActivity extends Activity {
 
         // Request overlay permission if not granted
         if (!Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-            intent.setData(Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, REQ_OVERLAY);
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, REQ_OVERLAY);
+            } catch (Exception e) {
+                showError("Gagal minta izin overlay: " + e.getMessage());
+            }
         }
     }
 
@@ -73,34 +97,69 @@ public class MainActivity extends Activity {
             selectedIsoUri = data.getData();
             String name = (selectedIsoUri != null) ? selectedIsoUri.getLastPathSegment() : "file";
             tvIsoStatus.setText("Dipilih: " + name);
-            copyIsoInBackground();
+            copyIsoWithProgress();
         }
     }
 
-    private void copyIsoInBackground() {
+    private void copyIsoWithProgress() {
         if (selectedIsoUri == null) return;
+        progressIso.setVisibility(android.view.View.VISIBLE);
+        tvProgress.setVisibility(android.view.View.VISIBLE);
         tvIsoStatus.setText("Menyalin ISO...");
+
         new Thread(() -> {
-            try (InputStream in = getContentResolver().openInputStream(selectedIsoUri);
-                 OutputStream out = new FileOutputStream(new File(getExternalFilesDir(null), "avatar.iso"))) {
-                byte[] buf = new byte[8192];
+            try {
+                Uri uri = selectedIsoUri;
+                long totalSize = 0;
+                try (android.os.ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+                    if (pfd != null) totalSize = pfd.getStatSize();
+                } catch (Exception ignored) {}
+
+                InputStream in = getContentResolver().openInputStream(uri);
+                File outFile = new File(getExternalFilesDir(null), "avatar.iso");
+                OutputStream out = new FileOutputStream(outFile);
+
+                byte[] buf = new byte[65536];
+                long copied = 0;
                 int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                runOnUiThread(() -> tvIsoStatus.setText("ISO siap: avatar.iso"));
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    copied += n;
+                    if (totalSize > 0) {
+                        final int pct = (int) ((copied * 100) / totalSize);
+                        runOnUiThread(() -> {
+                            progressIso.setProgress(pct);
+                            tvProgress.setText(pct + "%");
+                        });
+                    }
+                }
+                in.close();
+                out.close();
+
+                runOnUiThread(() -> {
+                    progressIso.setProgress(100);
+                    tvProgress.setText("100%");
+                    tvIsoStatus.setText("ISO siap: avatar.iso");
+                });
             } catch (Exception e) {
-                runOnUiThread(() -> tvIsoStatus.setText("Gagal salin: " + e.getMessage()));
+                runOnUiThread(() -> {
+                    progressIso.setVisibility(android.view.View.GONE);
+                    tvProgress.setVisibility(android.view.View.GONE);
+                    tvIsoStatus.setText("Gagal salin: " + e.getMessage());
+                });
             }
         }).start();
     }
 
     private void startGame() {
+        tvError.setVisibility(android.view.View.GONE);
         File iso = new File(getExternalFilesDir(null), "avatar.iso");
         if (!iso.exists()) {
-            Toast.makeText(this, "Pilih & salin ISO dulu", Toast.LENGTH_SHORT).show();
+            showError("Pilih & salin ISO dulu");
             return;
         }
 
-        String res = spinnerRes.getSelectedItem().toString();
+        String res = RESOLUTIONS[seekRes.getProgress()];
         String gfx = spinnerGraphics.getSelectedItem().toString();
 
         SharedPreferences sp = getSharedPreferences("ps2cfg", MODE_PRIVATE);
@@ -119,15 +178,36 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) {}
 
-        // Call JNI
-        setResolution(res);
+        // Call JNI setResolution with try-catch
+        try {
+            setResolution(res);
+        } catch (UnsatisfiedLinkError e) {
+            showError("Gagal memuat engine C++: " + e.getMessage());
+            return;
+        } catch (Exception e) {
+            showError("Error JNI: " + e.getMessage());
+            return;
+        }
 
         // Start CheatOverlayService
-        startService(new Intent(this, CheatOverlayService.class));
+        try {
+            startService(new Intent(this, CheatOverlayService.class));
+        } catch (Exception e) {
+            showError("Gagal start overlay: " + e.getMessage());
+        }
 
-        // Launch NativeActivity
-        Intent i = new Intent(this, android.app.NativeActivity.class);
-        i.putExtra("iso_path", iso.getAbsolutePath());
-        startActivity(i);
+        // Launch NativeActivity with try-catch
+        try {
+            Intent i = new Intent(this, android.app.NativeActivity.class);
+            i.putExtra("iso_path", iso.getAbsolutePath());
+            startActivity(i);
+        } catch (Exception e) {
+            showError("Gagal memuat engine C++: " + e.getMessage());
+        }
+    }
+
+    private void showError(String msg) {
+        tvError.setText(msg);
+        tvError.setVisibility(android.view.View.VISIBLE);
     }
 }

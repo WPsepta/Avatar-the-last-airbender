@@ -616,7 +616,7 @@ if(PS2X_IS_VITA)
 endif()
 
 if(PS2X_IS_ANDROID)
-    target_sources(ps2EntryRunner PRIVATE src/lib/ps2_android_runtime.cpp)
+    target_sources(ps2EntryRunner PRIVATE src/lib/ps2_android_runtime.cpp src/lib/jni_bridge.cpp)
 endif()
 
 install(TARGETS ps2_runtime ps2EntryRunner
