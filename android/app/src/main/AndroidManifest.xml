@@ -32,7 +32,7 @@
         </activity>
 
         <service
-            android:name=".CheatOverlayService"
+            android:name=".GameOverlayService"
             android:exported="false" />
 
     </application>

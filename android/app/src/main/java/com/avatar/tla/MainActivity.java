@@ -25,12 +25,16 @@ public class MainActivity extends Activity {
     private TextView tvError;
 
     private Uri selectedIsoUri = null;
+    private boolean libLoaded = false;
+    private String libLoadError = null;
 
     static {
         try {
             System.loadLibrary("ps2EntryRunner");
         } catch (UnsatisfiedLinkError e) {
-            // Library not found - will be caught at runtime
+            libLoadError = e.toString();
+        } catch (Exception e) {
+            libLoadError = e.toString();
         }
     }
 
@@ -71,6 +75,16 @@ public class MainActivity extends Activity {
         findViewById(R.id.btnPickIso).setOnClickListener(v -> pickIso());
         btnStart.setOnClickListener(v -> startGame());
 
+        // Check if avatar.iso already exists
+        File iso = new File(getExternalFilesDir(null), "avatar.iso");
+        if (iso.exists() && iso.length() > 0) {
+            tvIsoStatus.setText("ISO siap: avatar.iso");
+            progressIso.setProgress(100);
+            progressIso.setVisibility(android.view.View.VISIBLE);
+            tvProgress.setText("100%");
+            tvProgress.setVisibility(android.view.View.VISIBLE);
+        }
+
         // Request overlay permission if not granted
         if (!Settings.canDrawOverlays(this)) {
             try {
@@ -80,6 +94,11 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 showError("Gagal minta izin overlay: " + e.getMessage());
             }
+        }
+
+        // Show library load error if any
+        if (libLoadError != null) {
+            showError("Gagal load library C++: " + libLoadError);
         }
     }
 
@@ -182,16 +201,16 @@ public class MainActivity extends Activity {
         try {
             setResolution(res);
         } catch (UnsatisfiedLinkError e) {
-            showError("Gagal memuat engine C++: " + e.getMessage());
+            showError("Gagal memuat engine C++ (JNI): " + e.toString());
             return;
-        } catch (Exception e) {
-            showError("Error JNI: " + e.getMessage());
+        } catch (Throwable e) {
+            showError("Error JNI: " + e.toString());
             return;
         }
 
-        // Start CheatOverlayService
+        // Start GameOverlayService
         try {
-            startService(new Intent(this, CheatOverlayService.class));
+            startService(new Intent(this, GameOverlayService.class));
         } catch (Exception e) {
             showError("Gagal start overlay: " + e.getMessage());
         }
@@ -202,7 +221,7 @@ public class MainActivity extends Activity {
             i.putExtra("iso_path", iso.getAbsolutePath());
             startActivity(i);
         } catch (Exception e) {
-            showError("Gagal memuat engine C++: " + e.getMessage());
+            showError("Gagal memuat engine C++: " + e.toString());
         }
     }
 
