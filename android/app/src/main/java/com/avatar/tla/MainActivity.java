@@ -26,7 +26,7 @@ public class MainActivity extends Activity {
 
     private Uri selectedIsoUri = null;
     private boolean libLoaded = false;
-    private String libLoadError = null;
+    private static String libLoadError = null;
 
     static {
         try {
