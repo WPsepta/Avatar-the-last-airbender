@@ -56,7 +56,6 @@ externalNativeBuild {
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
             externalNativeBuild {
                 cmake {
                     arguments '-DCMAKE_BUILD_TYPE=Release'
