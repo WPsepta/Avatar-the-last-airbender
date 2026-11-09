@@ -5,25 +5,28 @@
         android:label="AVATAR: THE LAST AIRBENDER"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:hasCode="false"
-        android:testOnly="false"
         android:isGame="true">
 
         <activity
-            android:name="android.app.NativeActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
-            android:screenOrientation="landscape"
-            android:exported="true">
-
-            <!-- Runner shared library built by ps2xRuntime/CMakeLists.txt -->
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="ps2EntryRunner" />
-
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
+            android:screenOrientation="landscape">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="ps2EntryRunner" />
+
         </activity>
     </application>
 
