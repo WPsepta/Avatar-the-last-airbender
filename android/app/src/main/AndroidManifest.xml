@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
     <application
         android:label="AVATAR: THE LAST AIRBENDER"
         android:icon="@mipmap/ic_launcher"
@@ -20,7 +18,7 @@
         </activity>
 
         <activity
-            android:name="android.app.NativeActivity"
+            android:name=".GameActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
             android:screenOrientation="landscape">
@@ -30,10 +28,6 @@
                 android:value="ps2EntryRunner" />
 
         </activity>
-
-        <service
-            android:name=".GameOverlayService"
-            android:exported="false" />
 
     </application>
 

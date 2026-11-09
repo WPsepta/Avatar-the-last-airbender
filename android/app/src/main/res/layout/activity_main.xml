@@ -109,5 +109,25 @@
             android:layout_marginTop="12dp"
             android:visibility="gone" />
 
+        <Button
+            android:id="@+id/btnReadLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Baca Log"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/tvLog"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:text=""
+            android:textColor="#00FF00"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:background="#000000"
+            android:padding="8dp"
+            android:layout_marginTop="8dp"
+            android:scrollbars="vertical" />
+
     </LinearLayout>
 </ScrollView>

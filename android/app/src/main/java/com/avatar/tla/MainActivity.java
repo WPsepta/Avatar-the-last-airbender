@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.btnPickIso).setOnClickListener(v -> pickIso());
         btnStart.setOnClickListener(v -> startGame());
+        findViewById(R.id.btnReadLog).setOnClickListener(v -> bacaLog());
 
         // Check if avatar.iso already exists
         File iso = new File(getExternalFilesDir(null), "avatar.iso");
@@ -215,14 +216,43 @@ public class MainActivity extends Activity {
             showError("Gagal start overlay: " + e.getMessage());
         }
 
-        // Launch NativeActivity with try-catch
+        // Launch GameActivity with try-catch
         try {
-            Intent i = new Intent(this, android.app.NativeActivity.class);
+            Intent i = new Intent(this, GameActivity.class);
             i.putExtra("iso_path", iso.getAbsolutePath());
             startActivity(i);
         } catch (Exception e) {
             showError("Gagal memuat engine C++: " + e.toString());
+            bacaLog();
         }
+    }
+
+    private void bacaLog() {
+        new Thread(() -> {
+            try {
+                Process process = Runtime.getRuntime().exec("logcat -d -s PS2RecompJNI:* AndroidRuntime:E *:F");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line).append("\\n");
+                }
+                reader.close();
+                process.waitFor();
+                final String logOutput = sb.toString();
+                runOnUiThread(() -> {
+                    if (tvLog != null) {
+                        tvLog.setText(logOutput.isEmpty() ? "Tidak ada log" : logOutput);
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (tvLog != null) {
+                        tvLog.setText("Gagal baca log: " + e.getMessage());
+                    }
+                });
+            }
+        }).start();
     }
 
     private void showError(String msg) {
