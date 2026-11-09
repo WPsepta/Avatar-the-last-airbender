@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:label="AVATAR: THE LAST AIRBENDER"
         android:icon="@mipmap/ic_launcher"
@@ -28,6 +30,11 @@
                 android:value="ps2EntryRunner" />
 
         </activity>
+
+        <service
+            android:name=".CheatOverlayService"
+            android:exported="false" />
+
     </application>
 
 </manifest>

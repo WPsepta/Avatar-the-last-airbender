@@ -1,21 +1,30 @@
-package com.ps2x.runner;
+package com.avatar.tla;
 
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.*;
 import java.io.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
+    private static final int REQ_OVERLAY = 1002;
+
     private TextView tvIsoStatus;
-    private SeekBar seekRes;
+    private Spinner spinnerRes;
     private Spinner spinnerGraphics;
-    private CheckBox cbInfHealth, cbInfChi;
     private Button btnStart;
+
     private Uri selectedIsoUri = null;
+
+    static {
+        System.loadLibrary("ps2EntryRunner");
+    }
+
+    public native void setResolution(String res);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,20 +32,31 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         tvIsoStatus = findViewById(R.id.tvIsoStatus);
-        seekRes = findViewById(R.id.seekRes);
+        spinnerRes = findViewById(R.id.spinnerRes);
         spinnerGraphics = findViewById(R.id.spinnerGraphics);
-        cbInfHealth = findViewById(R.id.cbInfHealth);
-        cbInfChi = findViewById(R.id.cbInfChi);
         btnStart = findViewById(R.id.btnStart);
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+        ArrayAdapter<String> resAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"144p", "240p", "360p", "480p", "720p", "1080p (HD)"});
+        resAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerRes.setAdapter(resAdapter);
+
+        ArrayAdapter<String> gfxAdapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item,
                 new String[]{"Low", "Medium", "High"});
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerGraphics.setAdapter(adapter);
+        gfxAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerGraphics.setAdapter(gfxAdapter);
 
         findViewById(R.id.btnPickIso).setOnClickListener(v -> pickIso());
         btnStart.setOnClickListener(v -> startGame());
+
+        // Request overlay permission if not granted
+        if (!Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, REQ_OVERLAY);
+        }
     }
 
     private void pickIso() {
@@ -79,30 +99,33 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Pilih & salin ISO dulu", Toast.LENGTH_SHORT).show();
             return;
         }
-        float res = 0.5f + (seekRes.getProgress() * 0.5f);
+
+        String res = spinnerRes.getSelectedItem().toString();
         String gfx = spinnerGraphics.getSelectedItem().toString();
-        boolean infHealth = cbInfHealth.isChecked();
-        boolean infChi = cbInfChi.isChecked();
 
         SharedPreferences sp = getSharedPreferences("ps2cfg", MODE_PRIVATE);
         sp.edit()
-            .putFloat("resolution", res)
+            .putString("resolution", res)
             .putString("graphics", gfx)
-            .putBoolean("infHealth", infHealth)
-            .putBoolean("infChi", infChi)
             .apply();
 
+        // Write config.ini
         try {
             File cfg = new File(getExternalFilesDir(null), "config.ini");
             try (PrintWriter pw = new PrintWriter(cfg)) {
                 pw.println("resolution=" + res);
                 pw.println("graphics=" + gfx);
-                pw.println("infHealth=" + infHealth);
-                pw.println("infChi=" + infChi);
                 pw.println("iso=" + iso.getAbsolutePath());
             }
         } catch (Exception ignored) {}
 
+        // Call JNI
+        setResolution(res);
+
+        // Start CheatOverlayService
+        startService(new Intent(this, CheatOverlayService.class));
+
+        // Launch NativeActivity
         Intent i = new Intent(this, android.app.NativeActivity.class);
         i.putExtra("iso_path", iso.getAbsolutePath());
         startActivity(i);

@@ -43,12 +43,10 @@
             android:textColor="#FFFFFF"
             android:layout_marginBottom="4dp" />
 
-        <SeekBar
-            android:id="@+id/seekRes"
+        <Spinner
+            android:id="@+id/spinnerRes"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="3"
-            android:progress="1"
             android:layout_marginBottom="16dp" />
 
         <TextView
@@ -62,28 +60,6 @@
             android:id="@+id/spinnerGraphics"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cheat"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="4dp" />
-
-        <CheckBox
-            android:id="@+id/cbInfHealth"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Infinite Health"
-            android:textColor="#FFFFFF" />
-
-        <CheckBox
-            android:id="@+id/cbInfChi"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Infinite Chi"
-            android:textColor="#FFFFFF"
             android:layout_marginBottom="24dp" />
 
         <Button
