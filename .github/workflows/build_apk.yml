@@ -52,7 +52,7 @@ jobs:
 
       - name: Extract final project folder
         run: |
-          unzip -oq project_final_v22.zip
+          unzip -oq project_final_v23.zip
 
       - name: Merge split zip parts (C++ output)
         run: |
