@@ -23,6 +23,7 @@ public class MainActivity extends Activity {
     private Spinner spinnerGraphics;
     private Button btnStart;
     private TextView tvError;
+    private TextView tvLog;
 
     private Uri selectedIsoUri = null;
     private boolean libLoaded = false;
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
         spinnerGraphics = findViewById(R.id.spinnerGraphics);
         btnStart = findViewById(R.id.btnStart);
         tvError = findViewById(R.id.tvError);
+        tvLog = findViewById(R.id.tvLog);
 
         seekRes.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
