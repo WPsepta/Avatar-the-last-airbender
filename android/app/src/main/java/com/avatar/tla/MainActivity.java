@@ -5,13 +5,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
+
 import android.widget.*;
 import java.io.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
-    private static final int REQ_OVERLAY = 1002;
 
     private static final String[] RESOLUTIONS = {"144p", "240p", "360p", "480p", "720p", "1080p (HD)"};
 
@@ -88,16 +87,6 @@ public class MainActivity extends Activity {
             tvProgress.setVisibility(android.view.View.VISIBLE);
         }
 
-        // Request overlay permission if not granted
-        if (!Settings.canDrawOverlays(this)) {
-            try {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-                intent.setData(Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, REQ_OVERLAY);
-            } catch (Exception e) {
-                showError("Gagal minta izin overlay: " + e.getMessage());
-            }
-        }
 
         // Show library load error if any
         if (libLoadError != null) {
@@ -209,13 +198,6 @@ public class MainActivity extends Activity {
         } catch (Throwable e) {
             showError("Error JNI: " + e.toString());
             return;
-        }
-
-        // Start GameOverlayService
-        try {
-            startService(new Intent(this, GameOverlayService.class));
-        } catch (Exception e) {
-            showError("Gagal start overlay: " + e.getMessage());
         }
 
         // Launch GameActivity with try-catch

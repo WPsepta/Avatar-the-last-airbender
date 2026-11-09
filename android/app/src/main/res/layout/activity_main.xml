@@ -116,18 +116,22 @@
             android:text="Baca Log"
             android:layout_marginTop="8dp" />
 
-        <TextView
-            android:id="@+id/tvLog"
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="200dp"
-            android:text=""
-            android:textColor="#00FF00"
-            android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:background="#000000"
-            android:padding="8dp"
             android:layout_marginTop="8dp"
-            android:scrollbars="vertical" />
+            android:background="#000000"
+            android:fillViewport="true">
+            <TextView
+                android:id="@+id/tvLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#00FF00"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:padding="8dp" />
+        </ScrollView>
 
     </LinearLayout>
 </ScrollView>
