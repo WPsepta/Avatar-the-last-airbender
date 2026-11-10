@@ -753,8 +753,9 @@ bool PS2Runtime::initialize(const char *title)
         PS2R_LOGI("InitWindow returned; IsWindowReady=%d", IsWindowReady() ? 1 : 0);
 #endif
         InitAudioDevice();
-        m_audioBackend.setAudioReady(IsAudioDeviceReady());
-        PS2R_LOGI("Audio initialized (ready=%d)", m_audioBackend.isAudioReady() ? 1 : 0);
+        bool audioReady = IsAudioDeviceReady();
+        m_audioBackend.setAudioReady(audioReady);
+        PS2R_LOGI("Audio initialized (ready=%d)", audioReady ? 1 : 0);
 #endif
         SetTargetFPS(60);
         if (m_debugUiInitCallback)
