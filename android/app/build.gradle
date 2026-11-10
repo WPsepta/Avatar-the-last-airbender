@@ -27,6 +27,7 @@ android {
                         '-DPS2X_RUNNER_UNITY_BUILD_BATCH_SIZE=80',
                         '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG',
                         '-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG',
+                        '-DANDROID_STL=c++_shared',
                         '-DANDROID_CPP_FEATURES=rtti exceptions',
                         "-DPS2X_DEFAULT_BOOT_ELF=${ps2xBootElf}"
                 targets 'ps2EntryRunner'
