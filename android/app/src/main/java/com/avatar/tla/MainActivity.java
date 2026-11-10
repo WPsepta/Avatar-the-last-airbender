@@ -29,7 +29,7 @@ public class MainActivity extends Activity {
 
     private Uri selectedIsoUri = null;
     private static String libLoadError = null;
-    private static Process logcatProcess = null;
+    private static java.lang.Process logcatProcess = null;
 
     static {
         try {
