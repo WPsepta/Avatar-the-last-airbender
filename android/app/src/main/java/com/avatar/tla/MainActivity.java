@@ -13,6 +13,7 @@ import java.io.*;
 public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
     private static final String ELF_NAME = "SLUS_213.95";
+    private static final String ISO_NAME = "avatar.iso";
     private static final String[] RESOLUTIONS = {"144p", "240p", "360p", "480p", "720p", "1080p (HD)"};
 
     private TextView tvIsoStatus;
@@ -72,13 +73,17 @@ public class MainActivity extends Activity {
         btnStart.setOnClickListener(v -> startGame());
         findViewById(R.id.btnForceStop).setOnClickListener(v -> forceStopGame());
 
-        // State persistence: check if ELF already extracted
+        // State persistence: check if ISO copied and ELF extracted
+        File iso = new File(getExternalFilesDir(null), ISO_NAME);
         File elf = new File(getExternalFilesDir(null), ELF_NAME);
-        if (elf.exists() && elf.length() > 0) {
-            tvIsoStatus.setText("Ekstraksi Game Selesai");
+        if (iso.exists() && iso.length() > 0 && elf.exists() && elf.length() > 0) {
+            tvIsoStatus.setText("Game Siap (ISO + " + ELF_NAME + ")");
             tvIsoStatus.setTextColor(0xFF00FF00);
             progressIso.setVisibility(View.GONE);
             tvProgress.setVisibility(View.GONE);
+        } else if (elf.exists() && elf.length() > 0) {
+            tvIsoStatus.setText("ELF ada, tapi avatar.iso belum disalin. Pilih ISO lagi.");
+            tvIsoStatus.setTextColor(0xFFFFA000);
         }
 
         if (libLoadError != null) {
@@ -100,42 +105,78 @@ public class MainActivity extends Activity {
             selectedIsoUri = data.getData();
             String name = (selectedIsoUri != null) ? selectedIsoUri.getLastPathSegment() : "file";
             tvIsoStatus.setText("Dipilih: " + name);
-            extractElfFromIso();
+            copyIsoAndExtractElf();
         }
     }
 
-    private void extractElfFromIso() {
+    private void copyIsoAndExtractElf() {
         if (selectedIsoUri == null) return;
         progressIso.setVisibility(View.VISIBLE);
         progressIso.setProgress(0);
         tvProgress.setVisibility(View.VISIBLE);
         tvProgress.setText("0%");
-        tvIsoStatus.setText("Mengekstrak " + ELF_NAME + " dari ISO...");
+        tvIsoStatus.setText("Menyalin ISO utuh (avatar.iso)... Ini bisa memakan waktu untuk file besar.");
         tvIsoStatus.setTextColor(0xFFAAAAAA);
         tvError.setVisibility(View.GONE);
 
         new Thread(() -> {
+            File filesDir = getExternalFilesDir(null);
+            File isoOut = new File(filesDir, ISO_NAME);
+            File elfOut = new File(filesDir, ELF_NAME);
             try {
+                if (filesDir == null) throw new IOException("Storage tidak tersedia");
                 long totalSize = 0;
                 try (android.os.ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(selectedIsoUri, "r")) {
                     if (pfd != null) totalSize = pfd.getStatSize();
                 } catch (Exception ignored) {}
 
-                File outFile = new File(getExternalFilesDir(null), ELF_NAME);
-                try (InputStream in = getContentResolver().openInputStream(selectedIsoUri)) {
+                // 1) Copy full ISO to avatar.iso (engine reads assets from this file)
+                try (InputStream in = getContentResolver().openInputStream(selectedIsoUri);
+                     OutputStream os = new FileOutputStream(isoOut)) {
                     if (in == null) throw new IOException("Tidak bisa membuka ISO");
-                    IsoExtractor.extractFile(in, totalSize, outFile, ELF_NAME, pct ->
-                            runOnUiThread(() -> {
-                                progressIso.setProgress(pct);
-                                tvProgress.setText(pct + "%");
-                            })
-                    );
+                    byte[] buf = new byte[65536];
+                    long copied = 0;
+                    int n;
+                    long lastUi = 0;
+                    while ((n = in.read(buf)) > 0) {
+                        os.write(buf, 0, n);
+                        copied += n;
+                        if (totalSize > 0) {
+                            int pct = (int) Math.min(90, (copied * 90) / totalSize);
+                            if (copied - lastUi > 1024 * 1024 || pct >= 90) {
+                                lastUi = copied;
+                                final int fp = pct;
+                                final long fc = copied, ft = totalSize;
+                                runOnUiThread(() -> {
+                                    progressIso.setProgress(fp);
+                                    tvProgress.setText(fp + "% (" + (fc / (1024 * 1024)) + "/" + (ft / (1024 * 1024)) + " MB)");
+                                });
+                            }
+                        }
+                    }
+                    os.flush();
                 }
 
                 runOnUiThread(() -> {
+                    progressIso.setProgress(92);
+                    tvProgress.setText("92%");
+                    tvIsoStatus.setText("ISO tersalin. Mengekstrak " + ELF_NAME + " untuk boot...");
+                });
+
+                // 2) Extract ELF from copied ISO for boot
+                IsoExtractor.extractFileFromIsoFile(isoOut, elfOut, ELF_NAME, pct ->
+                        runOnUiThread(() -> {
+                            int mapped = 92 + (pct * 8) / 100;
+                            progressIso.setProgress(mapped);
+                            tvProgress.setText(mapped + "%");
+                        }), 0, 100);
+                // map callback inside gave 0-100, but we called with base 0; adjust final
+                runOnUiThread(() -> {
+                    progressIso.setProgress(100);
+                    tvProgress.setText("100%");
                     progressIso.setVisibility(View.GONE);
                     tvProgress.setVisibility(View.GONE);
-                    tvIsoStatus.setText("Ekstraksi Game Selesai");
+                    tvIsoStatus.setText("Game Siap: avatar.iso + " + ELF_NAME);
                     tvIsoStatus.setTextColor(0xFF00FF00);
                 });
             } catch (Exception e) {
@@ -143,9 +184,9 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     progressIso.setVisibility(View.GONE);
                     tvProgress.setVisibility(View.GONE);
-                    tvIsoStatus.setText("Gagal ekstrak ELF: " + msg);
+                    tvIsoStatus.setText("Gagal: " + msg);
                     tvIsoStatus.setTextColor(0xFFFF5252);
-                    showError("Ekstraksi gagal: " + msg);
+                    showError("Gagal salin/ekstrak: " + msg + "\nPastikan ruang penyimpanan cukup (~1.5GB untuk ISO).");
                 });
             }
         }).start();
@@ -153,9 +194,15 @@ public class MainActivity extends Activity {
 
     private void startGame() {
         tvError.setVisibility(View.GONE);
-        File elf = new File(getExternalFilesDir(null), ELF_NAME);
+        File filesDir = getExternalFilesDir(null);
+        File elf = new File(filesDir, ELF_NAME);
+        File iso = new File(filesDir, ISO_NAME);
         if (!elf.exists() || elf.length() == 0) {
             showError("Pilih ISO dulu (ELF " + ELF_NAME + " belum diekstrak)");
+            return;
+        }
+        if (!iso.exists() || iso.length() == 0) {
+            showError("File avatar.iso (aset game) belum ada. Pilih ISO lagi agar disalin utuh ke " + (filesDir != null ? filesDir.getAbsolutePath() : "(storage)") + "/avatar.iso");
             return;
         }
 

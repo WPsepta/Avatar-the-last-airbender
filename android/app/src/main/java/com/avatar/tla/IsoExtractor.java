@@ -29,49 +29,56 @@ public class IsoExtractor {
             }
         }
         try {
-            try (RandomAccessFile raf = new RandomAccessFile(tmp, "r")) {
-                // Primary Volume Descriptor at sector 16
-                byte[] pvd = readSector(raf, 16);
-                if (pvd[0] != 1 || pvd[1] != 'C' || pvd[2] != 'D' || pvd[3] != '0' || pvd[4] != '0' || pvd[5] != '1') {
-                    throw new IOException("Not a valid ISO9660 image");
-                }
-                // Root directory record at offset 156 in PVD (34 bytes)
-                int rootExtent = le32(pvd, 156 + 2);
-                int rootSize = le32(pvd, 156 + 10);
-                int[] found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase());
-                if (found == null) {
-                    // try with common variations
-                    found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase().replace('.', '_'));
-                    if (found == null) found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase().replace('_', '.'));
-                }
-                if (found == null) throw new IOException("File not found in ISO: " + targetName);
-                int extent = found[0];
-                int size = found[1];
-                if (cb != null) cb.onProgress(55);
-                try (FileOutputStream fos = new FileOutputStream(outFile)) {
-                    byte[] buf = new byte[65536];
-                    long remaining = size;
-                    long pos = (long) extent * 2048L;
-                    raf.seek(pos);
-                    long written = 0;
-                    while (remaining > 0) {
-                        int toRead = (int) Math.min(buf.length, remaining);
-                        int r = raf.read(buf, 0, toRead);
-                        if (r <= 0) break;
-                        fos.write(buf, 0, r);
-                        remaining -= r;
-                        written += r;
-                        if (size > 0 && cb != null) {
-                            cb.onProgress(55 + (int) ((written * 45) / size));
-                        }
-                    }
-                }
-                if (cb != null) cb.onProgress(100);
-                return true;
-            }
+            extractFileFromIsoFile(tmp, outFile, targetName, cb, 50, 50);
+            if (cb != null) cb.onProgress(100);
+            return true;
         } finally {
             //noinspection ResultOfMethodCallIgnored
             tmp.delete();
+        }
+    }
+
+    /** Extract a file from an existing ISO file on disk. progressBase/progressSpan map extraction progress into cb range. */
+    public static boolean extractFileFromIsoFile(File isoFile, File outFile, String targetName, ProgressCallback cb, int progressBase, int progressSpan) throws IOException {
+        try (RandomAccessFile raf = new RandomAccessFile(isoFile, "r")) {
+            // Primary Volume Descriptor at sector 16
+            byte[] pvd = readSector(raf, 16);
+            if (pvd[0] != 1 || pvd[1] != 'C' || pvd[2] != 'D' || pvd[3] != '0' || pvd[4] != '0' || pvd[5] != '1') {
+                throw new IOException("Not a valid ISO9660 image");
+            }
+            // Root directory record at offset 156 in PVD (34 bytes)
+            int rootExtent = le32(pvd, 156 + 2);
+            int rootSize = le32(pvd, 156 + 10);
+            int[] found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase());
+            if (found == null) {
+                // try with common variations
+                found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase().replace('.', '_'));
+                if (found == null) found = findFile(raf, rootExtent, rootSize, targetName.toUpperCase().replace('_', '.'));
+            }
+            if (found == null) throw new IOException("File not found in ISO: " + targetName);
+            int extent = found[0];
+            int size = found[1];
+            if (cb != null) cb.onProgress(progressBase + (int)(progressSpan * 0.10));
+            try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                byte[] buf = new byte[65536];
+                long remaining = size;
+                long pos = (long) extent * 2048L;
+                raf.seek(pos);
+                long written = 0;
+                while (remaining > 0) {
+                    int toRead = (int) Math.min(buf.length, remaining);
+                    int r = raf.read(buf, 0, toRead);
+                    if (r <= 0) break;
+                    fos.write(buf, 0, r);
+                    remaining -= r;
+                    written += r;
+                    if (size > 0 && cb != null) {
+                        int p = progressBase + (int)(progressSpan * 0.10) + (int) ((written * (progressSpan * 0.90)) / size);
+                        cb.onProgress(Math.min(progressBase + progressSpan, p));
+                    }
+                }
+            }
+            return true;
         }
     }
 

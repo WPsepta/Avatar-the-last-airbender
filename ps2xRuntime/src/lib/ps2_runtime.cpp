@@ -1094,9 +1094,16 @@ void PS2Runtime::configureIoPathsFromElf(const std::string &elfPath)
         paths.hostRoot = paths.elfDirectory;
         paths.cdRoot = paths.elfDirectory;
         paths.mcRoot = paths.elfDirectory / "mc0";
+        // Prefer ISO image for CDVD/sector reads (game assets live in the disc image)
+        paths.cdImage = paths.elfDirectory / "avatar.iso";
     }
 
     setIoPaths(paths);
+
+    PS2R_LOGI("IO paths configured: elfDir=%s cdRoot=%s cdImage=%s",
+              paths.elfDirectory.string().c_str(),
+              paths.cdRoot.string().c_str(),
+              paths.cdImage.string().c_str());
 }
 
 namespace
