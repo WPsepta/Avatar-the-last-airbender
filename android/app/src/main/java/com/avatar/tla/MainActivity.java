@@ -77,11 +77,10 @@ public class MainActivity extends Activity {
         // State persistence: check if ELF already extracted
         File elf = new File(getExternalFilesDir(null), ELF_NAME);
         if (elf.exists() && elf.length() > 0) {
-            tvIsoStatus.setText("ELF siap: " + ELF_NAME + " (" + (elf.length() / 1024) + " KB)");
-            progressIso.setVisibility(View.VISIBLE);
-            progressIso.setProgress(100);
-            tvProgress.setVisibility(View.VISIBLE);
-            tvProgress.setText("100%");
+            tvIsoStatus.setText("Selesai");
+            tvIsoStatus.setTextColor(0xFF00FF00);
+            progressIso.setVisibility(View.GONE);
+            tvProgress.setVisibility(View.GONE);
         }
 
         if (libLoadError != null) {
@@ -114,6 +113,7 @@ public class MainActivity extends Activity {
         tvProgress.setVisibility(View.VISIBLE);
         tvProgress.setText("0%");
         tvIsoStatus.setText("Mengekstrak " + ELF_NAME + " dari ISO...");
+        tvIsoStatus.setTextColor(0xFFAAAAAA);
         tvError.setVisibility(View.GONE);
 
         new Thread(() -> {
@@ -134,11 +134,11 @@ public class MainActivity extends Activity {
                     );
                 }
 
-                final long size = outFile.length();
                 runOnUiThread(() -> {
-                    progressIso.setProgress(100);
-                    tvProgress.setText("100%");
-                    tvIsoStatus.setText("ELF siap: " + ELF_NAME + " (" + (size / 1024) + " KB)");
+                    progressIso.setVisibility(View.GONE);
+                    tvProgress.setVisibility(View.GONE);
+                    tvIsoStatus.setText("Selesai");
+                    tvIsoStatus.setTextColor(0xFF00FF00);
                 });
             } catch (Exception e) {
                 final String msg = e.getMessage() != null ? e.getMessage() : e.toString();
@@ -146,6 +146,7 @@ public class MainActivity extends Activity {
                     progressIso.setVisibility(View.GONE);
                     tvProgress.setVisibility(View.GONE);
                     tvIsoStatus.setText("Gagal ekstrak ELF: " + msg);
+                    tvIsoStatus.setTextColor(0xFFFF5252);
                     showError("Ekstraksi gagal: " + msg);
                 });
             }
