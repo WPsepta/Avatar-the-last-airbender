@@ -394,6 +394,8 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
     static bool s_hasUploadedFrame = false;
     static std::vector<uint8_t> s_scratch;
     static std::vector<uint8_t> s_uploadBuffer(DEFAULT_FB_SIZE, 0u);
+    static uint32_t s_diagCount = 0u;
+    static bool s_lastCopyFailed = false;
 
     const uint64_t currentTick = rt->eeScheduler().currentVSyncTick();
     const bool needsLatch = !s_hasLatchedInitialFrame || currentTick != s_lastPresentationTick;
@@ -416,13 +418,20 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
     uint32_t displayFbp = 0u;
     uint32_t sourceFbp = 0u;
     bool usedPreferredDisplaySource = false;
-    if (!rt->gs().copyLatchedHostPresentationFrame(s_scratch,
-                                                   width,
-                                                   height,
-                                                   &displayFbp,
-                                                   &sourceFbp,
-                                                   &usedPreferredDisplaySource))
+    bool copyOk = rt->gs().copyLatchedHostPresentationFrame(s_scratch,
+                                                            width,
+                                                            height,
+                                                            &displayFbp,
+                                                            &sourceFbp,
+                                                            &usedPreferredDisplaySource);
+    if (!copyOk)
     {
+        if (s_diagCount < 30u || s_diagCount % 120u == 0u)
+        {
+            PS2R_LOGE("PresentationFrame copy FAILED (no latched frame). Using MAGENTA fallback. tick=%llu",
+                      (unsigned long long)currentTick);
+        }
+        s_diagCount++;
         Image blank = GenImageColor(FB_WIDTH, FB_HEIGHT, MAGENTA);
         UpdateTexture(tex, blank.data);
         UnloadImage(blank);
@@ -431,28 +440,21 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
         s_lastWidth = outWidth;
         s_lastHeight = outHeight;
         s_hasUploadedFrame = true;
+        s_lastCopyFailed = true;
         return;
     }
 
-    PS2_IF_AGRESSIVE_LOGS({
-        static uint32_t s_uploadDebugCount = 0u;
-        if (s_uploadDebugCount < 128u ||
-            displayFbp != s_lastDisplayFbp ||
-            sourceFbp != s_lastSourceFbp ||
-            usedPreferredDisplaySource != s_lastPreferred ||
-            width != s_lastWidth ||
-            height != s_lastHeight)
-        {
-            std::cout << "[frame:upload] idx=" << s_uploadDebugCount
-                      << " tick=" << currentTick
-                      << " displayFbp=" << displayFbp
-                      << " sourceFbp=" << sourceFbp
-                      << " size=" << width << "x" << height
-                      << " preferred=" << static_cast<uint32_t>(usedPreferredDisplaySource ? 1u : 0u)
-                      << std::endl;
-        }
-        ++s_uploadDebugCount;
-    });
+    if (s_diagCount < 30u || s_lastCopyFailed ||
+        displayFbp != s_lastDisplayFbp || sourceFbp != s_lastSourceFbp ||
+        usedPreferredDisplaySource != s_lastPreferred ||
+        width != s_lastWidth || height != s_lastHeight || s_diagCount % 120u == 0u)
+    {
+        PS2R_LOGI("PresentationFrame OK idx=%u tick=%llu displayFbp=%u sourceFbp=%u size=%ux%u preferred=%u scratch=%zu",
+                  s_diagCount, (unsigned long long)currentTick, displayFbp, sourceFbp,
+                  width, height, usedPreferredDisplaySource ? 1u : 0u, s_scratch.size());
+    }
+    s_diagCount++;
+    s_lastCopyFailed = false;
     s_lastDisplayFbp = displayFbp;
     s_lastSourceFbp = sourceFbp;
     s_lastPreferred = usedPreferredDisplaySource;
@@ -751,7 +753,11 @@ bool PS2Runtime::initialize(const char *title)
         SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN);
         InitWindow(HOST_WINDOW_WIDTH, HOST_WINDOW_HEIGHT, title);
 #if defined(__ANDROID__)
-        PS2R_LOGI("InitWindow returned; IsWindowReady=%d", IsWindowReady() ? 1 : 0);
+        if (IsWindowReady()) {
+            PS2R_LOGI("InitWindow OK: IsWindowReady=1 (window/context created)");
+        } else {
+            PS2R_LOGE("InitWindow FAILED: IsWindowReady=0 (window/context not ready)");
+        }
 #endif
         InitAudioDevice();
         bool audioReady = IsAudioDeviceReady();
@@ -2386,6 +2392,8 @@ void PS2Runtime::run()
     Image blank = GenImageColor(FB_WIDTH, FB_HEIGHT, BLANK);
     Texture2D frameTex = LoadTextureFromImage(blank);
     UnloadImage(blank);
+    PS2R_LOGI("Framebuffer texture created id=%u width=%d height=%d format=%d mipmaps=%d",
+              (unsigned)frameTex.id, frameTex.width, frameTex.height, frameTex.format, frameTex.mipmaps);
 
     std::atomic<bool> gameThreadFinished{false};
 
@@ -2411,6 +2419,8 @@ void PS2Runtime::run()
         gameThreadFinished.store(true, std::memory_order_release); });
 
     uint64_t tick = 0;
+    uint64_t drawTick = 0;
+    PS2R_LOGI("Entering main run loop (WindowShouldClose=%d)", WindowShouldClose() ? 1 : 0);
     while (!isStopRequested() && !gameThreadFinished.load(std::memory_order_acquire))
     {
         PS2_IF_AGRESSIVE_LOGS({
@@ -2449,30 +2459,50 @@ void PS2Runtime::run()
         uint32_t presentHeight = DEFAULT_DISPLAY_HEIGHT;
         UploadFrame(frameTex, this, presentWidth, presentHeight);
 
+        if (drawTick < 5u || drawTick % 60u == 0u)
+        {
+            PS2R_LOGI("raylib draw frame %llu: WindowReady=%d BeginDrawing call, tex.id=%u tex.w=%d tex.h=%d",
+                      (unsigned long long)drawTick, IsWindowReady() ? 1 : 0,
+                      (unsigned)frameTex.id, frameTex.width, frameTex.height);
+        }
         BeginDrawing();
         ClearBackground(BLACK);
-        const float srcWidth = static_cast<float>(std::max<uint32_t>(1u, presentWidth));
-        const float srcHeight = static_cast<float>(std::max<uint32_t>(1u, presentHeight));
-        const float screenWidth = static_cast<float>(GetScreenWidth());
-        const float screenHeight = static_cast<float>(GetScreenHeight());
-        const float scale = std::min(screenWidth / srcWidth, screenHeight / srcHeight);
-        const float dstWidth = srcWidth * scale;
-        const float dstHeight = srcHeight * scale;
-        const Rectangle srcRect{0.0f, 0.0f, srcWidth, srcHeight};
-        const Rectangle dstRect{
-            (screenWidth - dstWidth) * 0.5f,
-            (screenHeight - dstHeight) * 0.5f,
-            dstWidth,
-            dstHeight};
-        DrawTexturePro(frameTex, srcRect, dstRect, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+        if (frameTex.id == 0 || frameTex.width <= 0 || frameTex.height <= 0)
+        {
+            PS2R_LOGE("DrawTexturePro SKIPPED: texture invalid (id=%u w=%d h=%d)", (unsigned)frameTex.id, frameTex.width, frameTex.height);
+        }
+        else
+        {
+            const float srcWidth = static_cast<float>(std::max<uint32_t>(1u, presentWidth));
+            const float srcHeight = static_cast<float>(std::max<uint32_t>(1u, presentHeight));
+            const float screenWidth = static_cast<float>(GetScreenWidth());
+            const float screenHeight = static_cast<float>(GetScreenHeight());
+            const float scale = std::min(screenWidth / srcWidth, screenHeight / srcHeight);
+            const float dstWidth = srcWidth * scale;
+            const float dstHeight = srcHeight * scale;
+            const Rectangle srcRect{0.0f, 0.0f, srcWidth, srcHeight};
+            const Rectangle dstRect{
+                (screenWidth - dstWidth) * 0.5f,
+                (screenHeight - dstHeight) * 0.5f,
+                dstWidth,
+                dstHeight};
+            if (drawTick < 5u || drawTick % 60u == 0u)
+            {
+                PS2R_LOGI("DrawTexturePro: src=%ux%u dst=%ux%u screen=%ux%u", (unsigned)presentWidth, (unsigned)presentHeight,
+                          (unsigned)(int)dstWidth, (unsigned)(int)dstHeight, (unsigned)(int)screenWidth, (unsigned)(int)screenHeight);
+            }
+            DrawTexturePro(frameTex, srcRect, dstRect, Vector2{0.0f, 0.0f}, 0.0f, WHITE);
+        }
         if (m_debugUiInitialized && m_debugUiDrawCallback)
         {
             m_debugUiDrawCallback(*this, m_debugUiUserData);
         }
         EndDrawing();
+        drawTick++;
 
         if (WindowShouldClose())
         {
+            PS2R_LOGI("WindowShouldClose() returned true");
             RUNTIME_LOG("[run] window close requested, breaking out of loop");
             requestStop();
             break;
