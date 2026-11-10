@@ -111,49 +111,13 @@
             android:visibility="gone" />
 
         <Button
-            android:id="@+id/btnReadLog"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Baca Log"
-            android:layout_marginTop="8dp" />
-
-        <Button
-            android:id="@+id/btnReadGameLog"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Baca Log Game Terakhir"
-            android:layout_marginTop="4dp" />
-
-        <Button
             android:id="@+id/btnForceStop"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Matikan Game (Force Stop)"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="12dp"
             android:backgroundTint="#B71C1C"
             android:textColor="#FFFFFF" />
-
-        <ScrollView
-            android:id="@+id/scrollLog"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginTop="8dp"
-            android:minHeight="200dp"
-            android:background="#000000"
-            android:fillViewport="true"
-            android:nestedScrollingEnabled="true">
-            <TextView
-                android:id="@+id/tvLog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="#00FF00"
-                android:textSize="10sp"
-                android:fontFamily="monospace"
-                android:padding="8dp"
-                android:textIsSelectable="true" />
-        </ScrollView>
 
     </LinearLayout>
 </ScrollView>

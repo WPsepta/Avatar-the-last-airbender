@@ -747,7 +747,8 @@ bool PS2Runtime::initialize(const char *title)
         InitWindow(HOST_WINDOW_WIDTH, HOST_WINDOW_HEIGHT, title); // raylib vita does not support audio
 #else
         PS2R_LOGI("InitWindow (raylib) %dx%d", HOST_WINDOW_WIDTH, HOST_WINDOW_HEIGHT);
-        SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+        // Diagnostic: try hidden window to allow engine to run without presenting to screen
+        SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIDDEN);
         InitWindow(HOST_WINDOW_WIDTH, HOST_WINDOW_HEIGHT, title);
 #if defined(__ANDROID__)
         PS2R_LOGI("InitWindow returned; IsWindowReady=%d", IsWindowReady() ? 1 : 0);

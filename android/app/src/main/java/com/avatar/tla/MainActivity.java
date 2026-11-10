@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Process;
 import android.view.View;
 import android.widget.*;
 
@@ -14,7 +13,6 @@ import java.io.*;
 public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
     private static final String ELF_NAME = "SLUS_213.95";
-    private static final String LOG_FILE_NAME = "ps2_debug.log";
     private static final String[] RESOLUTIONS = {"144p", "240p", "360p", "480p", "720p", "1080p (HD)"};
 
     private TextView tvIsoStatus;
@@ -25,11 +23,9 @@ public class MainActivity extends Activity {
     private Spinner spinnerGraphics;
     private Button btnStart;
     private TextView tvError;
-    private TextView tvLog;
 
     private Uri selectedIsoUri = null;
     private static String libLoadError = null;
-    private static java.lang.Process logcatProcess = null;
 
     static {
         try {
@@ -56,7 +52,6 @@ public class MainActivity extends Activity {
         spinnerGraphics = findViewById(R.id.spinnerGraphics);
         btnStart = findViewById(R.id.btnStart);
         tvError = findViewById(R.id.tvError);
-        tvLog = findViewById(R.id.tvLog);
 
         seekRes.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -75,14 +70,12 @@ public class MainActivity extends Activity {
 
         findViewById(R.id.btnPickIso).setOnClickListener(v -> pickIso());
         btnStart.setOnClickListener(v -> startGame());
-        findViewById(R.id.btnReadLog).setOnClickListener(v -> bacaLog());
-        findViewById(R.id.btnReadGameLog).setOnClickListener(v -> bacaLogGameTerakhir());
         findViewById(R.id.btnForceStop).setOnClickListener(v -> forceStopGame());
 
         // State persistence: check if ELF already extracted
         File elf = new File(getExternalFilesDir(null), ELF_NAME);
         if (elf.exists() && elf.length() > 0) {
-            tvIsoStatus.setText("Selesai");
+            tvIsoStatus.setText("Ekstraksi Game Selesai");
             tvIsoStatus.setTextColor(0xFF00FF00);
             progressIso.setVisibility(View.GONE);
             tvProgress.setVisibility(View.GONE);
@@ -142,7 +135,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     progressIso.setVisibility(View.GONE);
                     tvProgress.setVisibility(View.GONE);
-                    tvIsoStatus.setText("Selesai");
+                    tvIsoStatus.setText("Ekstraksi Game Selesai");
                     tvIsoStatus.setTextColor(0xFF00FF00);
                 });
             } catch (Exception e) {
@@ -156,33 +149,6 @@ public class MainActivity extends Activity {
                 });
             }
         }).start();
-    }
-
-    private void startGameLogCapture() {
-        File logFile = new File(getExternalFilesDir(null), LOG_FILE_NAME);
-        // Stop previous logcat capture if any
-        try {
-            if (logcatProcess != null) {
-                logcatProcess.destroy();
-                logcatProcess = null;
-            }
-        } catch (Throwable ignored) {}
-
-        new Thread(() -> {
-            try {
-                // Clear old logs
-                try {
-                    java.lang.Process clear = Runtime.getRuntime().exec(new String[]{"logcat", "-c"});
-                    clear.waitFor();
-                } catch (Throwable ignored) {}
-                // Start continuous logging to file
-                logcatProcess = Runtime.getRuntime().exec(new String[]{
-                        "logcat", "-v", "threadtime", "-f", logFile.getAbsolutePath()
-                });
-            } catch (Throwable t) {
-                runOnUiThread(() -> showError("Gagal mulai capture log: " + t.getMessage()));
-            }
-        }, "logcat-capture").start();
     }
 
     private void startGame() {
@@ -212,16 +178,11 @@ public class MainActivity extends Activity {
             setResolution(res);
         } catch (UnsatisfiedLinkError e) {
             showError("Gagal memuat engine C++ (JNI): " + e.toString());
-            bacaLog();
             return;
         } catch (Throwable e) {
             showError("Error JNI: " + e.toString());
-            bacaLog();
             return;
         }
-
-        // Start log capture before launching game
-        startGameLogCapture();
 
         try {
             Intent i = new Intent(this, GameActivity.class);
@@ -229,78 +190,13 @@ public class MainActivity extends Activity {
             startActivity(i);
         } catch (Exception e) {
             showError("Gagal memulai game: " + e.toString());
-            bacaLog();
         }
     }
 
-    private void bacaLog() {
-        new Thread(() -> {
-            try {
-                java.lang.Process process = Runtime.getRuntime().exec(new String[]{
-                        "logcat", "-d", "-t", "500",
-                        "PS2RecompJNI:*", "AndroidRuntime:E", "DEBUG:*", "libc:F", "*:S"
-                });
-                String out = readProcessOutput(process);
-                final String logOutput = out;
-                runOnUiThread(() -> {
-                    if (tvLog != null) {
-                        tvLog.setText(logOutput.isEmpty() ? "Tidak ada log" : logOutput);
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    if (tvLog != null) tvLog.setText("Gagal baca log: " + e.getMessage());
-                });
-            }
-        }).start();
-    }
-
-    private void bacaLogGameTerakhir() {
-        new Thread(() -> {
-            try {
-                File logFile = new File(getExternalFilesDir(null), LOG_FILE_NAME);
-                if (!logFile.exists()) {
-                    runOnUiThread(() -> { if (tvLog != null) tvLog.setText("File log belum ada: " + logFile.getAbsolutePath()); });
-                    return;
-                }
-                // Read last ~8000 lines / ~500KB to avoid OOM on huge logs
-                StringBuilder sb = new StringBuilder();
-                long maxBytes = 512 * 1024;
-                long len = logFile.length();
-                try (RandomAccessFile raf = new RandomAccessFile(logFile, "r")) {
-                    long start = len > maxBytes ? len - maxBytes : 0;
-                    raf.seek(start);
-                    if (start > 0) raf.readLine(); // skip partial line
-                    String line;
-                    while ((line = raf.readLine()) != null) {
-                        sb.append(line).append('\n');
-                    }
-                }
-                final String text = sb.length() == 0 ? "(Log kosong)" : sb.toString();
-                runOnUiThread(() -> { if (tvLog != null) tvLog.setText(text); });
-            } catch (Exception e) {
-                runOnUiThread(() -> { if (tvLog != null) tvLog.setText("Gagal baca log game: " + e.getMessage()); });
-            }
-        }).start();
-    }
-
     private void forceStopGame() {
-        try {
-            if (logcatProcess != null) { logcatProcess.destroy(); logcatProcess = null; }
-        } catch (Throwable ignored) {}
         try { finishAffinity(); } catch (Throwable ignored) {}
-        try { Process.killProcess(Process.myPid()); } catch (Throwable ignored) {}
+        try { android.os.Process.killProcess(android.os.Process.myPid()); } catch (Throwable ignored) {}
         try { System.exit(0); } catch (Throwable ignored) {}
-    }
-
-    private String readProcessOutput(java.lang.Process process) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) sb.append(line).append('\n');
-        reader.close();
-        process.waitFor();
-        return sb.toString();
     }
 
     private void showError(String msg) {
