@@ -5,13 +5,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-
+import android.view.View;
 import android.widget.*;
+
 import java.io.*;
 
 public class MainActivity extends Activity {
     private static final int REQ_PICK_ISO = 1001;
-
+    private static final String ELF_NAME = "SLUS_213.95";
     private static final String[] RESOLUTIONS = {"144p", "240p", "360p", "480p", "720p", "1080p (HD)"};
 
     private TextView tvIsoStatus;
@@ -25,7 +26,6 @@ public class MainActivity extends Activity {
     private TextView tvLog;
 
     private Uri selectedIsoUri = null;
-    private boolean libLoaded = false;
     private static String libLoadError = null;
 
     static {
@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
             System.loadLibrary("ps2EntryRunner");
         } catch (UnsatisfiedLinkError e) {
             libLoadError = e.toString();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             libLoadError = e.toString();
         }
     }
@@ -56,14 +56,11 @@ public class MainActivity extends Activity {
         tvLog = findViewById(R.id.tvLog);
 
         seekRes.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tvResLabel.setText(RESOLUTIONS[progress]);
             }
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
         tvResLabel.setText(RESOLUTIONS[seekRes.getProgress()]);
 
@@ -77,18 +74,16 @@ public class MainActivity extends Activity {
         btnStart.setOnClickListener(v -> startGame());
         findViewById(R.id.btnReadLog).setOnClickListener(v -> bacaLog());
 
-        // Check if avatar.iso already exists
-        File iso = new File(getExternalFilesDir(null), "avatar.iso");
-        if (iso.exists() && iso.length() > 0) {
-            tvIsoStatus.setText("ISO siap: avatar.iso");
+        // State persistence: check if ELF already extracted
+        File elf = new File(getExternalFilesDir(null), ELF_NAME);
+        if (elf.exists() && elf.length() > 0) {
+            tvIsoStatus.setText("ELF siap: " + ELF_NAME + " (" + (elf.length() / 1024) + " KB)");
+            progressIso.setVisibility(View.VISIBLE);
             progressIso.setProgress(100);
-            progressIso.setVisibility(android.view.View.VISIBLE);
+            tvProgress.setVisibility(View.VISIBLE);
             tvProgress.setText("100%");
-            tvProgress.setVisibility(android.view.View.VISIBLE);
         }
 
-
-        // Show library load error if any
         if (libLoadError != null) {
             showError("Gagal load library C++: " + libLoadError);
         }
@@ -108,65 +103,60 @@ public class MainActivity extends Activity {
             selectedIsoUri = data.getData();
             String name = (selectedIsoUri != null) ? selectedIsoUri.getLastPathSegment() : "file";
             tvIsoStatus.setText("Dipilih: " + name);
-            copyIsoWithProgress();
+            extractElfFromIso();
         }
     }
 
-    private void copyIsoWithProgress() {
+    private void extractElfFromIso() {
         if (selectedIsoUri == null) return;
-        progressIso.setVisibility(android.view.View.VISIBLE);
-        tvProgress.setVisibility(android.view.View.VISIBLE);
-        tvIsoStatus.setText("Menyalin ISO...");
+        progressIso.setVisibility(View.VISIBLE);
+        progressIso.setProgress(0);
+        tvProgress.setVisibility(View.VISIBLE);
+        tvProgress.setText("0%");
+        tvIsoStatus.setText("Mengekstrak " + ELF_NAME + " dari ISO...");
+        tvError.setVisibility(View.GONE);
 
         new Thread(() -> {
             try {
-                Uri uri = selectedIsoUri;
                 long totalSize = 0;
-                try (android.os.ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+                try (android.os.ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(selectedIsoUri, "r")) {
                     if (pfd != null) totalSize = pfd.getStatSize();
                 } catch (Exception ignored) {}
 
-                InputStream in = getContentResolver().openInputStream(uri);
-                File outFile = new File(getExternalFilesDir(null), "avatar.iso");
-                OutputStream out = new FileOutputStream(outFile);
-
-                byte[] buf = new byte[65536];
-                long copied = 0;
-                int n;
-                while ((n = in.read(buf)) > 0) {
-                    out.write(buf, 0, n);
-                    copied += n;
-                    if (totalSize > 0) {
-                        final int pct = (int) ((copied * 100) / totalSize);
-                        runOnUiThread(() -> {
-                            progressIso.setProgress(pct);
-                            tvProgress.setText(pct + "%");
-                        });
-                    }
+                File outFile = new File(getExternalFilesDir(null), ELF_NAME);
+                try (InputStream in = getContentResolver().openInputStream(selectedIsoUri)) {
+                    if (in == null) throw new IOException("Tidak bisa membuka ISO");
+                    IsoExtractor.extractFile(in, totalSize, outFile, ELF_NAME, pct ->
+                            runOnUiThread(() -> {
+                                progressIso.setProgress(pct);
+                                tvProgress.setText(pct + "%");
+                            })
+                    );
                 }
-                in.close();
-                out.close();
 
+                final long size = outFile.length();
                 runOnUiThread(() -> {
                     progressIso.setProgress(100);
                     tvProgress.setText("100%");
-                    tvIsoStatus.setText("ISO siap: avatar.iso");
+                    tvIsoStatus.setText("ELF siap: " + ELF_NAME + " (" + (size / 1024) + " KB)");
                 });
             } catch (Exception e) {
+                final String msg = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    progressIso.setVisibility(android.view.View.GONE);
-                    tvProgress.setVisibility(android.view.View.GONE);
-                    tvIsoStatus.setText("Gagal salin: " + e.getMessage());
+                    progressIso.setVisibility(View.GONE);
+                    tvProgress.setVisibility(View.GONE);
+                    tvIsoStatus.setText("Gagal ekstrak ELF: " + msg);
+                    showError("Ekstraksi gagal: " + msg);
                 });
             }
         }).start();
     }
 
     private void startGame() {
-        tvError.setVisibility(android.view.View.GONE);
-        File iso = new File(getExternalFilesDir(null), "avatar.iso");
-        if (!iso.exists()) {
-            showError("Pilih & salin ISO dulu");
+        tvError.setVisibility(View.GONE);
+        File elf = new File(getExternalFilesDir(null), ELF_NAME);
+        if (!elf.exists() || elf.length() == 0) {
+            showError("Pilih ISO dulu (ELF " + ELF_NAME + " belum diekstrak)");
             return;
         }
 
@@ -174,39 +164,36 @@ public class MainActivity extends Activity {
         String gfx = spinnerGraphics.getSelectedItem().toString();
 
         SharedPreferences sp = getSharedPreferences("ps2cfg", MODE_PRIVATE);
-        sp.edit()
-            .putString("resolution", res)
-            .putString("graphics", gfx)
-            .apply();
+        sp.edit().putString("resolution", res).putString("graphics", gfx).apply();
 
-        // Write config.ini
+        // Write config.ini with ELF path (engine may read this or use compile-time default)
         try {
             File cfg = new File(getExternalFilesDir(null), "config.ini");
             try (PrintWriter pw = new PrintWriter(cfg)) {
                 pw.println("resolution=" + res);
                 pw.println("graphics=" + gfx);
-                pw.println("iso=" + iso.getAbsolutePath());
+                pw.println("boot_elf=" + elf.getAbsolutePath());
             }
         } catch (Exception ignored) {}
 
-        // Call JNI setResolution with try-catch
         try {
             setResolution(res);
         } catch (UnsatisfiedLinkError e) {
             showError("Gagal memuat engine C++ (JNI): " + e.toString());
+            bacaLog();
             return;
         } catch (Throwable e) {
             showError("Error JNI: " + e.toString());
+            bacaLog();
             return;
         }
 
-        // Launch GameActivity with try-catch
         try {
             Intent i = new Intent(this, GameActivity.class);
-            i.putExtra("iso_path", iso.getAbsolutePath());
+            i.putExtra("elf_path", elf.getAbsolutePath());
             startActivity(i);
         } catch (Exception e) {
-            showError("Gagal memuat engine C++: " + e.toString());
+            showError("Gagal memulai game: " + e.toString());
             bacaLog();
         }
     }
@@ -214,12 +201,15 @@ public class MainActivity extends Activity {
     private void bacaLog() {
         new Thread(() -> {
             try {
-                Process process = Runtime.getRuntime().exec("logcat -d -s PS2RecompJNI:* AndroidRuntime:E *:F");
+                Process process = Runtime.getRuntime().exec(new String[]{
+                        "logcat", "-d", "-t", "500",
+                        "PS2RecompJNI:*", "AndroidRuntime:E", "DEBUG:*", "libc:F", "*:S"
+                });
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    sb.append(line).append("\\n");
+                    sb.append(line).append("\n");
                 }
                 reader.close();
                 process.waitFor();
@@ -241,6 +231,6 @@ public class MainActivity extends Activity {
 
     private void showError(String msg) {
         tvError.setText(msg);
-        tvError.setVisibility(android.view.View.VISIBLE);
+        tvError.setVisibility(View.VISIBLE);
     }
 }
